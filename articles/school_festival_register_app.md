@@ -1,0 +1,83 @@
+---
+title: "Next.js+Supabaseで学祭のレジアプリを作った話"
+emoji: "🙌"
+type: "tech" # tech: 技術記事 / idea: アイデア
+topics: ["Nextjs", "Supabase"]
+published: false
+---
+# 1. 背景
+学祭で綿あめの出店が決まり、それに合わせてレジアプリを作成することにしました。主な目的は以下の通りです。
+- これまでは受付の人が口頭で厨房に注文内容を伝えていたため、作り間違いが発生する問題があり、その問題を解決すること。
+- 注文の伝達や管理など、受付の人の負担を軽減する。
+- 売上を記録・集計できるようにする。
+
+# 2. 使用技術
+- フロントエンド：Next.js
+- バックエンド(データベース)：Supabase
+- デプロイ環境：Vercel
+
+# 3. Supabaseでテーブル作成 & 関数作成
+## 3-1. テーブル設計
+今回作成するアプリはシンプルな構成のため、注文された商品1つにつき1レコードが対応するテーブルを1つ作成します。テーブル名は"orders"として、カラムは以下の通りにしました。
+- id(主キー)：注文を一意に識別するための番号
+- created_at：注文された日時(Supabaseの自動タイムスタンプ機能を使用)
+- item：商品名
+- price：商品の値段
+- status：商品の状態。"pending"(受付済み)、または"served"(提供済み)
+- ticket_number：チケット番号(注文順に加算)
+
+## 3-2. テーブル作成
+3-1の設計をもとに、Supabase上でテーブルを作成します。
+まず新しいプロジェクトを作成後、画面左の「Table Editor」または、テーブルがまだ存在しない場合は中央の「Create a new table」をクリックします。
+フォームが表示されるので、Name(テーブル名)やDescription(説明)を入力します。さらに下へスクロールすると、カラムやデータ型を設定できるセクションが表れるため、3-1で設計した内容を入力していきます。
+入力が完了したら、画面下部の「Save」ボタンをクリックするとテーブルが作成され舞う。**GUIベースで操作できるため、直感的に作業できるのがSupabaseの強み**です。
+![](/images/0.png)
+
+# 4. システムの流れ
+## 4-1. 注文入力
+注文入力の欄には、購入可能なわたがしとその価格がボタンとして並んでいます。
+![](/images/1.png)
+
+例えば、「単品赤 → 単品青 → 単品黄」の順にボタンを押すと、各商品が下部に追加され、商品名・チケット番号・価格が表示されます。仮合計欄には選択された商品の合計金額が表示されます。
+![](/images/2.png)
+
+## 4-2. 注文確定 & 調理状況確認
+商品を選択した状態で「注文を確定」ボタンを押すと、その注文が調理状況に追加され、同時にSupabaseのorderテーブルにレコードが登録されます。「完成」ボタンをクリックすると「渡す」ボタンに切り替わります。
+![](/images/3.png)
+
+## 4-3. 商品受け渡し
+「渡す」ボタンをクリックすると、その注文は調理状況から非表示となり、対応するレコードのstatusが"served"に更新されます。
+以下の写真は「単品赤」の注文が受け渡された後の状態です。
+![](/images/4.png)
+
+# 5. Next.jsとSupabaseの連携
+## 5-1. supabase-jsのインストール
+```sh:Terminal
+npm install @supabase/supabase-js
+```
+
+## 5-2. supabaseClient.tsの作成
+/src/lib/にsupabaseClient.tsを作成し、以下のように記述します。
+```ts:supabaseClient.ts
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+export const supabase = createClient(supabaseUrl, supabaseKey)
+```
+
+## 5-3. supabaseのURLとKEYを登録
+まず、使用するプロジェクトのURLとKEYを取得します。プロジェクトを選択した状態で左にある設定アイコンをクリックし、さらにData APIを選択することで、URLとKEYを取得できます。
+![](/images/5.png)
+
+- ローカルで動かす場合
+.env.localに上記で所得したURLとKEYを登録します。
+```:.env.local
+NEXT_PUBLIC_SUPABASE_URL=取得したURL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=取得したKEY
+```
+
+- Vercelでデプロイする場合
+Vercelで使用するプロジェクトを選択し、上部の「Settings」を押します。左側メニューの「Environment Variables」を選ぶと、KeyとValueを入力する欄が出てきます。Keyには画像にある文字を入力し、Valueには取得したURLとKEYを入力します。その後、画面下部の「Save」を押すことで、supabaseのURLとKEYを登録できます。
+![](/images/6.png)
